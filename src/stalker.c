@@ -77,10 +77,10 @@ static void redirect_stdout(const char *path) {
   }
 }
 
-static void handle_exit(uv_process_t *req, int64_t exit_status,
+static void handle_exit(uv_process_t *process, int64_t exit_status,
   int term_signal) {
   fprintf(stderr, "Process exited with status %lld, signal %d\n", exit_status, term_signal);
-  uv_close((uv_handle_t*) req, NULL);
+  uv_close((uv_handle_t*) process, NULL);
 }
 
 static void handle_update (uv_fs_event_t *handle, const char *file,
@@ -197,6 +197,9 @@ int main(int argc, const char **argv){
   options.exit_cb = handle_exit;
   options.file = cmd[0];
   options.args = cmd;
+
+  if (verbose)
+    fprintf(stderr, "\033[36m watching: \033[0m\033[90m%s\033[0m\n", args[1]);
   
   init_fs_event(args[1]);
   uv_run(loop, UV_RUN_DEFAULT);
