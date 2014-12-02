@@ -13,7 +13,7 @@ $ make install
 ## usage
 
 ```
-  usage: stalker [options] <cmd> <file1> [file2] ...
+  usage: stalker [options] <cmd> <file>
 
   options:
 
