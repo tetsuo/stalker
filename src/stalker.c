@@ -16,18 +16,24 @@
     uv_loop_delete(uv_default_loop()); \
   } while (0)
 
+#define EXIT1() \
+  MAKE_VALGRIND_HAPPY(); \
+  exit(1);
+
 static void handle_update (uv_fs_event_t *handle, const char *file,
   int events, int status);
 static void handle_close_walk(uv_handle_t *handle, void *arg);
+static void handle_exit(uv_process_t *req, int64_t exit_status, int term_signal);
 static void close_loop(uv_loop_t *loop);
 static void init_fs_event(const char *file);
 static void redirect_stdout(const char *path);
-static int option(const char *small, const char *large, 
-  const char *arg);
+static int option(const char *small, const char *large, const char *arg);
 static void usage();
 
 static uv_loop_t *loop;
-static char *cmd[4] = { "sh", "-c", 0, 0 };
+static uv_process_t process;
+static uv_process_options_t options;
+static char *cmd[4] = { "sh", "-c", NULL, NULL };
 static int quiet = 0;
 static int halt = 0;
 static int verbose = 0;
@@ -67,8 +73,14 @@ static void redirect_stdout(const char *path) {
   int fd = open(path, O_WRONLY);
   if (dup2(fd, 1) < 0) {
     perror("dup2()");
-    exit(1);
+    EXIT1();
   }
+}
+
+static void handle_exit(uv_process_t *req, int64_t exit_status,
+  int term_signal) {
+  fprintf(stderr, "Process exited with status %lld, signal %d\n", exit_status, term_signal);
+  uv_close((uv_handle_t*) req, NULL);
 }
 
 static void handle_update (uv_fs_event_t *handle, const char *file,
@@ -85,7 +97,13 @@ static void handle_update (uv_fs_event_t *handle, const char *file,
       fprintf(stderr, " \033[90mfile:\033[0m %s\n", file);
   }
 
-  pid_t pid;
+  int r;
+  if ((r = uv_spawn(loop, &process, &options))) {
+    fprintf(stderr, "%s\n", uv_strerror(r));
+    EXIT1();
+  }
+
+/*  pid_t pid;
   int status;
 
   if ((pid = fork()) < 0) {
@@ -108,7 +126,7 @@ static void handle_update (uv_fs_event_t *handle, const char *file,
         exit(WEXITSTATUS(status));
       }
     }
-  }
+  }*/
 
 }
 
@@ -176,6 +194,9 @@ int main(int argc, const char **argv){
   }
 
   *(cmd + 2) = args[0];
+  options.exit_cb = handle_exit;
+  options.file = cmd[0];
+  options.args = cmd;
   
   init_fs_event(args[1]);
   uv_run(loop, UV_RUN_DEFAULT);
