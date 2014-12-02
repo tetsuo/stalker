@@ -1,0 +1,6 @@
+[submodule "deps/gyp"]
+	path = deps/gyp
+	url = https://chromium.googlesource.com/external/gyp.git
+[submodule "deps/libuv"]
+	path = deps/libuv
+	url = git@github.com:libuv/libuv.git
