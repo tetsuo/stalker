@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include "uv.h"
 
-#define VERSION "0.1.0"
+#define VERSION "0.1.1"
 #define INTERVAL 100
 #define ARGS_MAX 128
 
@@ -16,18 +16,16 @@
     uv_loop_delete(uv_default_loop()); \
   } while (0)
 
-static void handle_poll(uv_fs_poll_t *handle,
-  int status_, const uv_stat_t *prev, const uv_stat_t *curr);
+static void handle_update (uv_fs_event_t *handle, const char *file,
+  int events, int status);
 static void handle_close_walk(uv_handle_t *handle, void *arg);
 static void close_loop(uv_loop_t *loop);
 static void run_loop(const char *file);
-
 static void redirect_stdout(const char *path);
 static int option(const char *small, const char *large, 
   const char *arg);
 static void usage();
 
-static uv_fs_poll_t poll_handle;
 static uv_loop_t *loop;
 
 static char *cmd[4] = { "sh", "-c", 0, 0 };
@@ -72,8 +70,16 @@ static void redirect_stdout(const char *path) {
   }
 }
 
-static void handle_poll(uv_fs_poll_t *handle,
-  int status_, const uv_stat_t *prev, const uv_stat_t *curr) {
+static void handle_update (uv_fs_event_t *handle, const char *file,
+  int events, int status_) {
+
+  fprintf(stderr, "Change detected in %s: ", handle->path);
+  if (events == UV_RENAME)
+      fprintf(stderr, "renamed");
+  if (events == UV_CHANGE)
+      fprintf(stderr, "changed");
+
+  fprintf(stderr, " %s\n", file ? file : "");
 
   pid_t pid;
   int status;
@@ -99,12 +105,14 @@ static void handle_poll(uv_fs_poll_t *handle,
       }
     }
   }
+
 }
 
 void run_loop(const char *file) {
   loop = uv_default_loop();
-  uv_fs_poll_init(loop, &poll_handle);
-  uv_fs_poll_start(&poll_handle, handle_poll, file, INTERVAL);
+  uv_fs_event_t *fs_event_req = malloc(sizeof(uv_fs_event_t));
+  uv_fs_event_init(loop, fs_event_req);
+  uv_fs_event_start(fs_event_req, handle_update, file, UV_FS_EVENT_RECURSIVE);
   uv_run(loop, UV_RUN_DEFAULT);
 }
 
