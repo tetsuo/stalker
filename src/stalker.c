@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include "uv.h"
 
-#define VERSION "0.1.1"
+#define VERSION "0.1.2"
 #define INTERVAL 100
 #define ARGS_MAX 128
 
@@ -20,17 +20,17 @@ static void handle_update (uv_fs_event_t *handle, const char *file,
   int events, int status);
 static void handle_close_walk(uv_handle_t *handle, void *arg);
 static void close_loop(uv_loop_t *loop);
-static void run_loop(const char *file);
+static void init_fs_event(const char *file);
 static void redirect_stdout(const char *path);
 static int option(const char *small, const char *large, 
   const char *arg);
 static void usage();
 
 static uv_loop_t *loop;
-
 static char *cmd[4] = { "sh", "-c", 0, 0 };
 static int quiet = 0;
 static int halt = 0;
+static int verbose = 0;
 
 static void handle_close_walk(uv_handle_t *handle, void *arg) {
   if (!uv_is_closing(handle))
@@ -53,10 +53,11 @@ static void usage() {
     "\n"
     "  options:\n"
     "\n"
-    "    -q, --quiet           only output stderr\n"
     "    -x, --halt            halt on failure\n"
-    "    -v, --version         output version number\n"
-    "    -h, --help            output this help information\n"
+    "    -h, --help            display this help message\n"
+    "    -q, --quiet           only output stderr\n"
+    "    -v, --verbose         make the operation more talkative\n"
+    "    -V, --version         display the version number\n"
     "\n"
     );
   exit(1);
@@ -73,13 +74,16 @@ static void redirect_stdout(const char *path) {
 static void handle_update (uv_fs_event_t *handle, const char *file,
   int events, int status_) {
 
-  fprintf(stderr, "Change detected in %s: ", handle->path);
-  if (events == UV_RENAME)
-      fprintf(stderr, "renamed");
-  if (events == UV_CHANGE)
-      fprintf(stderr, "changed");
-
-  fprintf(stderr, " %s\n", file ? file : "");
+  if (verbose) {
+    fprintf(stderr, "\033[36m");
+    if (events == UV_RENAME)
+        fprintf(stderr, "renamed");
+    if (events == UV_CHANGE)
+        fprintf(stderr, "changed");
+    fprintf(stderr, ": \033[0m\n \033[90mpath:\033[0m %s\n", handle->path);
+    if (file)
+      fprintf(stderr, " \033[90mfile:\033[0m %s\n", file);
+  }
 
   pid_t pid;
   int status;
@@ -98,7 +102,7 @@ static void handle_update (uv_fs_event_t *handle, const char *file,
       exit(1);
     }
     if (WEXITSTATUS(status)) {
-      fprintf(stderr, "\033[90mexit: %d\33[0m\n\n", WEXITSTATUS(status));
+      fprintf(stderr, "\033[31mexit: %d\33[0m\n\n", WEXITSTATUS(status));
       if (halt) {
         MAKE_VALGRIND_HAPPY();
         exit(WEXITSTATUS(status));
@@ -108,16 +112,15 @@ static void handle_update (uv_fs_event_t *handle, const char *file,
 
 }
 
-void run_loop(const char *file) {
-  loop = uv_default_loop();
+void init_fs_event(const char *file) {
   uv_fs_event_t *fs_event_req = malloc(sizeof(uv_fs_event_t));
   uv_fs_event_init(loop, fs_event_req);
   uv_fs_event_start(fs_event_req, handle_update, file, UV_FS_EVENT_RECURSIVE);
-  uv_run(loop, UV_RUN_DEFAULT);
 }
 
 int main(int argc, const char **argv){
   signal(SIGPIPE, SIG_IGN);
+  loop = uv_default_loop();
 
   if (1 == argc) usage();
 
@@ -132,6 +135,11 @@ int main(int argc, const char **argv){
 
     if (option("-h", "--help", arg)) usage();
 
+    if (option("-v", "--verbose", arg)) {
+      verbose = 1;
+      continue;
+    }
+
     if (option("-q", "--quiet", arg)) {
       quiet = 1;
       continue;
@@ -142,7 +150,7 @@ int main(int argc, const char **argv){
       continue;
     }
 
-    if (option("-v", "--version", arg)) {
+    if (option("-V", "--version", arg)) {
       printf("%s\n", VERSION);
       exit(1);
     }
@@ -168,6 +176,9 @@ int main(int argc, const char **argv){
   }
 
   *(cmd + 2) = args[0];
+  
+  init_fs_event(args[1]);
+  uv_run(loop, UV_RUN_DEFAULT);
 
-  run_loop(args[1]);
+  return 0;
 }

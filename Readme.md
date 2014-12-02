@@ -17,10 +17,11 @@ $ make install
 
   options:
 
-    -q, --quiet           only output stderr
     -x, --halt            halt on failure
-    -v, --version         output version number
-    -h, --help            output this help information
+    -h, --help            display this help message
+    -q, --quiet           only output stderr
+    -v, --verbose         make the operation more talkative
+    -V, --version         display the version number
 ```
 
 ## license
