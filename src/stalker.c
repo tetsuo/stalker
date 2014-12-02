@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,10 +10,18 @@
 #define INTERVAL 100
 #define ARGS_MAX 128
 
+#define MAKE_VALGRIND_HAPPY() \
+  do { \
+    close_loop(uv_default_loop()); \
+    uv_loop_delete(uv_default_loop()); \
+  } while (0)
+
 static void handle_poll(uv_fs_poll_t *handle,
   int status_, const uv_stat_t *prev, const uv_stat_t *curr);
-static void handle_close(uv_handle_t *handle) {};
+static void handle_close_walk(uv_handle_t *handle, void *arg);
+static void close_loop(uv_loop_t *loop);
 static void run_loop(const char *file);
+
 static void redirect_stdout(const char *path);
 static int option(const char *small, const char *large, 
   const char *arg);
@@ -26,6 +33,15 @@ static uv_loop_t *loop;
 static char *cmd[4] = { "sh", "-c", 0, 0 };
 static int quiet = 0;
 static int halt = 0;
+
+static void handle_close_walk(uv_handle_t *handle, void *arg) {
+  if (!uv_is_closing(handle))
+    uv_close(handle, NULL);
+}
+
+static void close_loop(uv_loop_t *loop) {
+  uv_walk(loop, handle_close_walk, NULL);
+}
 
 static int option(const char *small, const char *large, const char *arg) {
   if (!strcmp(small, arg) || !strcmp(large, arg)) return 1;
@@ -64,7 +80,7 @@ static void handle_poll(uv_fs_poll_t *handle,
 
   if ((pid = fork()) < 0) {
     fprintf(stderr, "fork()");
-    uv_close((uv_handle_t*)handle, handle_close);
+    MAKE_VALGRIND_HAPPY();
     exit(1);
   } else if (pid == 0) {
     if (quiet) redirect_stdout("/dev/null");
@@ -72,13 +88,13 @@ static void handle_poll(uv_fs_poll_t *handle,
   } else {
     if (waitpid(pid, &status, 0) < 0) {
       perror("waitpid()");
-      uv_close((uv_handle_t*)handle, handle_close);
+      MAKE_VALGRIND_HAPPY();
       exit(1);
     }
     if (WEXITSTATUS(status)) {
       fprintf(stderr, "\033[90mexit: %d\33[0m\n\n", WEXITSTATUS(status));
       if (halt) {
-        uv_close((uv_handle_t*)handle, handle_close);
+        MAKE_VALGRIND_HAPPY();
         exit(WEXITSTATUS(status));
       }
     }
@@ -87,10 +103,8 @@ static void handle_poll(uv_fs_poll_t *handle,
 
 void run_loop(const char *file) {
   loop = uv_default_loop();
-
   uv_fs_poll_init(loop, &poll_handle);
   uv_fs_poll_start(&poll_handle, handle_poll, file, INTERVAL);
-
   uv_run(loop, UV_RUN_DEFAULT);
 }
 
