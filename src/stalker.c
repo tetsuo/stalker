@@ -35,7 +35,6 @@ static uv_process_options_t options;
 
 static char *cmd[4] = { "sh", "-c", NULL, NULL };
 
-static int quiet = 0; // only output stderr
 static int halt = 0; // halt if cmd exits with 1
 static int verbose = 0; // makes the operation more talkative
 
@@ -63,7 +62,6 @@ static void usage() {
     "\n"
     "    -x, --halt            halt on failure\n"
     "    -h, --help            display this help message\n"
-    "    -q, --quiet           only output stderr\n"
     "    -v, --verbose         make the operation more talkative\n"
     "    -V, --version         display the version number\n"
     "\n"
@@ -150,11 +148,6 @@ int main(int argc, const char **argv){
 
     if (option("-v", "--verbose", arg)) {
       verbose = 1;
-      continue;
-    }
-
-    if (option("-q", "--quiet", arg)) {
-      quiet = 1;
       continue;
     }
 
