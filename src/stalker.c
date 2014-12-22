@@ -73,7 +73,15 @@ static void usage() {
 
 static void handle_exit(uv_process_t *process, int64_t exit_status,
   int term_signal) {
-  fprintf(stderr, "Process exited with status %lld, signal %d\n", exit_status, term_signal);
+  if (verbose) {
+    fprintf(stderr, "\033[36mexit \033[0m\033[90mstatus \033[0m%lld\033[90m signal \033[0m%d\n",
+      exit_status, term_signal);
+    
+    if (exit_status == 127) {
+      fprintf(stderr, "\033[31mnot found\033[90m %s\033[0m\n", cmd[2]);
+    }
+  }
+
   uv_close((uv_handle_t*) process, NULL);
 }
 
@@ -83,12 +91,12 @@ static void handle_update (uv_fs_event_t *handle, const char *file,
   if (verbose) {
     fprintf(stderr, "\033[36m");
     if (events == UV_RENAME)
-        fprintf(stderr, "rename:");
+        fprintf(stderr, "renamed ");
     if (events == UV_CHANGE)
-        fprintf(stderr, "change:");
-    fprintf(stderr, " \033[0m\033[90mpath\033[0m %s", handle->path);
-    if (file)
-      fprintf(stderr, " \033[90mfile\033[0m %s\n", file);
+        fprintf(stderr, "changed ");
+    fprintf(stderr, "\033[90m%s\033[0m", handle->path);
+    if (file) fprintf(stderr, " %s\n", file);
+    else fprintf(stderr, "\n");
   }
 
   int err;
@@ -97,7 +105,7 @@ static void handle_update (uv_fs_event_t *handle, const char *file,
 
   if (process.pid == 0 || UV_ESRCH == err) {
     int r;
-    if ((r = uv_spawn(loop, &process, &options))) { // XXX: --halt
+    if ((r = uv_spawn(loop, &process, &options))) {
       fprintf(stderr, "%s\n", uv_strerror(r));
       EXIT1();
     }
@@ -182,7 +190,7 @@ int main(int argc, const char **argv){
   options.args = cmd;
 
   if (verbose)
-    fprintf(stderr, "\033[36mwatching \033[0m\033[90m%s\033[0m\n", args[1]);
+    fprintf(stderr, "\033[36mwatch \033[0m\033[90m%s\033[0m\n", args[1]);
   
   // start monitoring the given path
   init_fs_event(args[1]);
