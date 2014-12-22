@@ -33,7 +33,6 @@ static uv_loop_t *loop;
 static uv_process_t process;
 static uv_process_options_t options;
 
-static int process_running = 0;
 static char *cmd[4] = { "sh", "-c", NULL, NULL };
 
 static int quiet = 0; // only output stderr
@@ -76,7 +75,6 @@ static void handle_exit(uv_process_t *process, int64_t exit_status,
   int term_signal) {
   fprintf(stderr, "Process exited with status %lld, signal %d\n", exit_status, term_signal);
   uv_close((uv_handle_t*) process, NULL);
-  process_running = 0;
 }
 
 static void handle_update (uv_fs_event_t *handle, const char *file,
@@ -93,15 +91,15 @@ static void handle_update (uv_fs_event_t *handle, const char *file,
       fprintf(stderr, " \033[90mfile\033[0m %s\n", file);
   }
 
-  if (process_running) {
-    fprintf(stderr, "already running\n");
-  } else {
+  int err;
+  // send a signum == 0 to check if child process is still alive
+  err = uv_kill(process.pid, 0);
+
+  if (process.pid == 0 || UV_ESRCH == err) {
     int r;
-    if ((r = uv_spawn(loop, &process, &options))) {
+    if ((r = uv_spawn(loop, &process, &options))) { // XXX: --halt
       fprintf(stderr, "%s\n", uv_strerror(r));
       EXIT1();
-    } else {
-      process_running = 1;
     }
   }
 }
