@@ -83,6 +83,13 @@ static void handle_exit(uv_process_t *process, int64_t exit_status,
   }
 
   uv_close((uv_handle_t*) process, NULL);
+
+  if (halt && exit_status != 0) {
+    if (verbose) {
+      fprintf(stderr, "\033[33mhalting\033[0m\n");
+    }
+    EXIT1();
+  }
 }
 
 static void handle_update (uv_fs_event_t *handle, const char *file,
@@ -190,7 +197,7 @@ int main(int argc, const char **argv){
   options.args = cmd;
 
   if (verbose)
-    fprintf(stderr, "\033[36mwatch \033[0m\033[90m%s\033[0m\n", args[1]);
+    fprintf(stderr, "\033[36mwatching \033[0m\033[90m%s\033[0m\n", args[1]);
   
   // start monitoring the given path
   init_fs_event(args[1]);
